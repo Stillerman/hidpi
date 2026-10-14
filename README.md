@@ -24,20 +24,20 @@ The whole trick is ~3 steps:
 
 ```sh
 # Find your monitor in the list
-./hidpi.py list
+python3 hidpi.py list
 
 # Install (example: Dell 34" ultrawide, 3440x1440)
-./hidpi.py enable --vendor 0x10ac --product 0x4149 --width 3440 --height 1440
+python3 hidpi.py enable --vendor 0x10ac --product 0x4149 --width 3440 --height 1440
 
 # Custom scales (fractions of native; default: 1.0,0.8,0.75,0.625,0.5)
-./hidpi.py enable --vendor 0x10ac --product 0x4149 --width 3440 --height 1440 \
+python3 hidpi.py enable --vendor 0x10ac --product 0x4149 --width 3440 --height 1440 \
     --scales 1.0,0.8,0.5
 
 # Remove the override
-./hidpi.py disable --vendor 0x10ac --product 0x4149
+python3 hidpi.py disable --vendor 0x10ac --product 0x4149
 ```
 
-Find your display's Vendor ID / Product ID by running `./hidpi.py list`
+Find your display's Vendor ID / Product ID by running `python3 hidpi.py list`
 (it reads them from ioreg and prints hex + decimal). Hex (`0x10ac`) or decimal
 both work as arguments.
 

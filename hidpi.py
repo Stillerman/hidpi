@@ -30,6 +30,7 @@ Find your display's Vendor ID / Product ID:
 
 import argparse
 import plistlib
+import re
 import struct
 import subprocess
 import sys
@@ -85,16 +86,8 @@ def privileged_run(shell_cmd: str) -> bool:
     return True
 
 
-def ioreg_displays() -> list[dict]:
-    """Return [{vendor, product, name}] for connected displays via ioreg."""
-    r = subprocess.run(["ioreg", "-ar", "-c", "IODisplayConnect"],
-                       capture_output=True)
-    if r.returncode != 0 or not r.stdout:
-        return []
-    try:
-        tree = plistlib.loads(r.stdout)
-    except Exception:
-        return []
+def ioreg_plist_scan(classes: list[str]) -> list[dict]:
+    """Walk ioreg XML plists for DisplayVendorID/DisplayProductID."""
     found: list[dict] = []
     seen: set[tuple[int, int]] = set()
 
@@ -123,8 +116,52 @@ def ioreg_displays() -> list[dict]:
             for val in node:
                 walk(val)
 
-    walk(tree)
+    for cls in classes:
+        r = subprocess.run(["ioreg", "-ar", "-c", cls], capture_output=True)
+        if r.returncode != 0 or not r.stdout:
+            continue
+        try:
+            walk(plistlib.loads(r.stdout))
+        except Exception:
+            continue
+        if found:
+            break
     return found
+
+
+def ioreg_text_scan() -> list[dict]:
+    """Fallback: grep text ioreg output for the ID properties."""
+    r = subprocess.run(["ioreg", "-l"], capture_output=True, text=True)
+    if r.returncode != 0:
+        return []
+    pairs: list[dict] = []
+    pending_vendor: int | None = None
+    pending_line = -1
+    for i, line in enumerate(r.stdout.splitlines()):
+        mv = re.search(r'"DisplayVendorID"\s*=\s*(\d+)', line)
+        mp = re.search(r'"DisplayProductID"\s*=\s*(\d+)', line)
+        if mv:
+            pending_vendor, pending_line = int(mv.group(1)), i
+        elif mp and pending_vendor is not None and i - pending_line <= 8:
+            pairs.append({"vendor": pending_vendor,
+                          "product": int(mp.group(1)), "name": None})
+            pending_vendor = None
+    seen: set[tuple[int, int]] = set()
+    out: list[dict] = []
+    for p in pairs:
+        k = (p["vendor"], p["product"])
+        if k not in seen:
+            seen.add(k)
+            out.append(p)
+    return out
+
+
+def ioreg_displays() -> list[dict]:
+    """Return [{vendor, product, name}] for connected displays via ioreg."""
+    displays = ioreg_plist_scan(["IODisplayConnect", "IOFramebuffer"])
+    if not displays:
+        displays = ioreg_text_scan()
+    return displays
 
 
 def cmd_list(_args: argparse.Namespace) -> int:
