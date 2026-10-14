@@ -36,6 +36,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import Optional
 
 OVERRIDES_BASE = Path("/Library/Displays/Contents/Resources/Overrides")
 DEFAULT_SCALES = [1.0, 0.8, 0.75, 0.625, 0.5]
@@ -91,7 +92,7 @@ def ioreg_plist_scan(classes: list[str]) -> list[dict]:
     found: list[dict] = []
     seen: set[tuple[int, int]] = set()
 
-    def edid_name(edid: bytes) -> str | None:
+    def edid_name(edid: bytes) -> Optional[str]:
         if len(edid) < 128 or edid[:8] != b"\x00\xff\xff\xff\xff\xff\xff\x00":
             return None
         for i in range(4):
@@ -135,7 +136,7 @@ def ioreg_text_scan() -> list[dict]:
     if r.returncode != 0:
         return []
     pairs: list[dict] = []
-    pending_vendor: int | None = None
+    pending_vendor: Optional[int] = None
     pending_line = -1
     for i, line in enumerate(r.stdout.splitlines()):
         mv = re.search(r'"DisplayVendorID"\s*=\s*(\d+)', line)
