@@ -37,9 +37,9 @@ The whole trick is ~3 steps:
 ./hidpi.py disable --vendor 0x10ac --product 0x4149
 ```
 
-Find your display's Vendor ID / Product ID in System Information:
-Apple menu -> About This Mac -> More Info -> System Report ->
-Graphics/Displays -> your monitor. Hex (`0x10ac`) or decimal both work.
+Find your display's Vendor ID / Product ID by running `./hidpi.py list`
+(it reads them from ioreg and prints hex + decimal). Hex (`0x10ac`) or decimal
+both work as arguments.
 
 ## Notes
 

@@ -85,16 +85,62 @@ def privileged_run(shell_cmd: str) -> bool:
     return True
 
 
+def ioreg_displays() -> list[dict]:
+    """Return [{vendor, product, name}] for connected displays via ioreg."""
+    r = subprocess.run(["ioreg", "-ar", "-c", "IODisplayConnect"],
+                       capture_output=True)
+    if r.returncode != 0 or not r.stdout:
+        return []
+    try:
+        tree = plistlib.loads(r.stdout)
+    except Exception:
+        return []
+    found: list[dict] = []
+    seen: set[tuple[int, int]] = set()
+
+    def edid_name(edid: bytes) -> str | None:
+        if len(edid) < 128 or edid[:8] != b"\x00\xff\xff\xff\xff\xff\xff\x00":
+            return None
+        for i in range(4):
+            d = edid[54 + i * 18: 54 + (i + 1) * 18]
+            if d[:2] == b"\x00\x00" and d[3] == 0xFC:
+                return d[5:18].decode("ascii", errors="ignore").strip()
+        return None
+
+    def walk(node) -> None:
+        if isinstance(node, dict):
+            v, p = node.get("DisplayVendorID"), node.get("DisplayProductID")
+            if isinstance(v, int) and isinstance(p, int) and (v, p) not in seen:
+                seen.add((v, p))
+                name = None
+                edid = node.get("IODisplayEDID")
+                if isinstance(edid, bytes):
+                    name = edid_name(edid)
+                found.append({"vendor": v, "product": p, "name": name})
+            for val in node.values():
+                walk(val)
+        elif isinstance(node, list):
+            for val in node:
+                walk(val)
+
+    walk(tree)
+    return found
+
+
 def cmd_list(_args: argparse.Namespace) -> int:
-    r = subprocess.run(
-        ["system_profiler", "SPDisplaysDataType"], capture_output=True, text=True
-    )
-    print(r.stdout)
-    print(
-        "Tip: match your monitor's name above, then find its Vendor/Product IDs in\n"
-        "System Information (Graphics/Displays) -- they are shown in hex.",
-        file=sys.stderr,
-    )
+    displays = ioreg_displays()
+    if not displays:
+        print("Could not read display IDs via ioreg.", file=sys.stderr)
+        print("Find them in System Information -> Graphics/Displays "
+              "(Display Vendor ID / Display Product ID).", file=sys.stderr)
+        return 1
+    for d in displays:
+        name = f"  ({d['name']})" if d["name"] else ""
+        print(f"vendor 0x{d['vendor']:x} ({d['vendor']})   "
+              f"product 0x{d['product']:x} ({d['product']}){name}")
+    print()
+    print("Use these with: ./hidpi.py enable --vendor 0x... --product 0x..."
+          " --width 3440 --height 1440")
     return 0
 
 
